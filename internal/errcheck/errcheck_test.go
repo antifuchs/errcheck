@@ -20,6 +20,7 @@ var (
 	uncheckedMarkers map[marker]bool
 	blankMarkers     map[marker]bool
 	assertMarkers    map[marker]bool
+	deferMarkers     map[marker]bool
 )
 
 type marker struct {
@@ -39,6 +40,7 @@ func init() {
 	uncheckedMarkers = make(map[marker]bool)
 	blankMarkers = make(map[marker]bool)
 	assertMarkers = make(map[marker]bool)
+	deferMarkers = make(map[marker]bool)
 
 	pkg, err := build.Import(testPackage, "", 0)
 	if err != nil {
@@ -62,6 +64,8 @@ func init() {
 				blankMarkers[m] = true
 			case "ASSERT\n":
 				assertMarkers[m] = true
+			case "DEFER\n":
+				deferMarkers[m] = true
 			}
 		}
 	}
@@ -72,6 +76,7 @@ type flags uint
 const (
 	CheckAsserts flags = 1 << iota
 	CheckBlank
+	IgnoreDefers
 )
 
 // TestUnchecked runs a test against the example files and ensures all unchecked errors are caught.
@@ -89,8 +94,8 @@ func TestAll(t *testing.T) {
 	test(t, CheckAsserts|CheckBlank)
 }
 
-func TestWhitelist(t *testing.T) {
-
+func TestDefers(t *testing.T) {
+	test(t, IgnoreDefers)
 }
 
 const testVendorMain = `
@@ -174,6 +179,7 @@ func TestIgnore(t *testing.T) {
 		}
 
 		if currCase.numExpectedErrs != len(uerr.Errors) {
+			t.Logf("Errors:\n%v", uerr.Errors)
 			t.Errorf("Case %d:\nExpected: %d errors\nActual:   %d errors", i, currCase.numExpectedErrs, len(uerr.Errors))
 		}
 	}
@@ -181,12 +187,14 @@ func TestIgnore(t *testing.T) {
 
 func test(t *testing.T, f flags) {
 	var (
-		asserts bool = f&CheckAsserts != 0
-		blank   bool = f&CheckBlank != 0
+		asserts      bool = f&CheckAsserts != 0
+		blank        bool = f&CheckBlank != 0
+		ignoredefers bool = f&IgnoreDefers != 1
 	)
 	checker := NewChecker()
 	checker.Asserts = asserts
 	checker.Blank = blank
+	checker.WithoutDefers = ignoredefers
 	err := checker.CheckPackages(testPackage)
 	uerr, ok := err.(*UncheckedErrors)
 	if !ok {
@@ -199,6 +207,9 @@ func test(t *testing.T, f flags) {
 	}
 	if asserts {
 		numErrors += len(assertMarkers)
+	}
+	if !ignoredefers {
+		numErrors += len(deferMarkers)
 	}
 
 	if len(uerr.Errors) != numErrors {

@@ -133,6 +133,7 @@ func parseFlags(checker *errcheck.Checker, args []string) ([]string, int) {
 	flags.BoolVar(&checker.Blank, "blank", false, "if true, check for errors assigned to blank identifier")
 	flags.BoolVar(&checker.Asserts, "asserts", false, "if true, check for ignored type assertion results")
 	flags.BoolVar(&checker.WithoutTests, "ignoretests", false, "if true, checking of _test.go files is disabled")
+	flags.BoolVar(&checker.WithoutDefers, "ignoredefers", false, "If true, disables checking for errors returned from functions invoked in defer statements")
 	flags.BoolVar(&checker.Verbose, "verbose", false, "produce more verbose logging")
 
 	flags.BoolVar(&abspath, "abspath", false, "print absolute paths to files")

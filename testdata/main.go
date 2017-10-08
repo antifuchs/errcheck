@@ -28,7 +28,7 @@ func rec() {
 		recover()     // UNCHECKED
 		_ = recover() // BLANK
 	}()
-	defer recover() // UNCHECKED
+	defer recover() // DEFER
 }
 
 type MyError string
@@ -129,7 +129,7 @@ func main() {
 
 	// Goroutine
 	go a()    // UNCHECKED
-	defer a() // UNCHECKED
+	defer a() // DEFER
 
 	b1 := bytes.Buffer{}
 	b2 := &bytes.Buffer{}

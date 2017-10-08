@@ -108,6 +108,13 @@ type Checker struct {
 	// If true, checking of _test.go files is disabled
 	WithoutTests bool
 
+	// If true, ignores errors returned from functions directly
+	// invoked in defer statements.
+	WithoutDefers bool
+
+	// The file into which CPU profile data should be written
+	CPUProfile string
+
 	exclude map[string]bool
 }
 
@@ -141,9 +148,7 @@ func (c *Checker) logf(msg string, args ...interface{}) {
 
 func (c *Checker) load(paths ...string) (*loader.Program, error) {
 	ctx := build.Default
-	for _, tag := range c.Tags {
-		ctx.BuildTags = append(ctx.BuildTags, tag)
-	}
+	ctx.BuildTags = append(ctx.BuildTags, c.Tags...)
 	loadcfg := loader.Config{
 		Build: &ctx,
 	}
@@ -179,14 +184,15 @@ func (c *Checker) CheckPackages(paths ...string) error {
 			c.logf("Checking %s", pkgInfo.Pkg.Path())
 
 			v := &visitor{
-				prog:    program,
-				pkg:     pkgInfo,
-				ignore:  c.Ignore,
-				blank:   c.Blank,
-				asserts: c.Asserts,
-				lines:   make(map[string][]string),
-				exclude: c.exclude,
-				errors:  []UncheckedError{},
+				prog:     program,
+				pkg:      pkgInfo,
+				ignore:   c.Ignore,
+				blank:    c.Blank,
+				asserts:  c.Asserts,
+				lines:    make(map[string][]string),
+				exclude:  c.exclude,
+				errors:   []UncheckedError{},
+				noDefers: c.WithoutDefers,
 			}
 
 			for _, astFile := range v.pkg.Files {
@@ -206,13 +212,14 @@ func (c *Checker) CheckPackages(paths ...string) error {
 
 // visitor implements the errcheck algorithm
 type visitor struct {
-	prog    *loader.Program
-	pkg     *loader.PackageInfo
-	ignore  map[string]*regexp.Regexp
-	blank   bool
-	asserts bool
-	lines   map[string][]string
-	exclude map[string]bool
+	prog     *loader.Program
+	pkg      *loader.PackageInfo
+	ignore   map[string]*regexp.Regexp
+	blank    bool
+	asserts  bool
+	lines    map[string][]string
+	exclude  map[string]bool
+	noDefers bool
 
 	errors []UncheckedError
 }
@@ -404,7 +411,7 @@ func (v *visitor) Visit(node ast.Node) ast.Visitor {
 			v.addErrorAtPosition(stmt.Call.Lparen, stmt.Call)
 		}
 	case *ast.DeferStmt:
-		if !v.ignoreCall(stmt.Call) && v.callReturnsError(stmt.Call) {
+		if !v.noDefers && !v.ignoreCall(stmt.Call) && v.callReturnsError(stmt.Call) {
 			v.addErrorAtPosition(stmt.Call.Lparen, stmt.Call)
 		}
 	case *ast.AssignStmt:
